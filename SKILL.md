@@ -202,6 +202,12 @@ linked to it.
    uncovered class — break production in a DIFFERENT way than the original
    bug (e.g. only handle the first separator) and see if the probe notices.
    If it stays green, you just found the fixture's missing class, for free.
+   **Safety precondition**: mutation-verify ONLY on a version-controlled
+   tree, with the mutation confined to a single, immediately revertible
+   edit — commit or stash real work first. If you get interrupted
+   mid-mutation (crash, power loss), the broken line outlives you: `git
+   diff` must be able to say exactly what you changed. No VCS → copy the
+   file aside before mutating, restore from the copy.
 5. Run the project's **gate suite** = the one that ALWAYS runs before code
    ships: pre-push/CI if they exist, otherwise the project's standard test
    command. The census (below) only goes green when the map and the wells

@@ -79,11 +79,34 @@ function Copy-FixtureTo($destDir) {
   }
 }
 
+function Resolve-ClaudeLauncher() {
+  # npm installs `claude` as a .cmd shim on Windows; Start-Process can only
+  # exec real Win32 binaries, so route shims through cmd.exe.
+  $cmd = Get-Command "claude.cmd" -ErrorAction SilentlyContinue
+  if (-not $cmd) { $cmd = Get-Command "claude.exe" -ErrorAction SilentlyContinue }
+  if (-not $cmd) { $cmd = Get-Command "claude" -ErrorAction SilentlyContinue }
+  if (-not $cmd) {
+    Write-Host "ERROR: 'claude' CLI not found in PATH." -ForegroundColor Red
+    exit 1
+  }
+  return $cmd.Source
+}
+
 function Invoke-ClaudeAgent($workDir, $prompt, $timeout) {
   $stdout = Join-Path $workDir "agent-stdout.log"
   $stderr = Join-Path $workDir "agent-stderr.log"
-  $proc = Start-Process -FilePath "claude" `
-    -ArgumentList @('-p', $prompt, '--dangerously-skip-permissions') `
+  $launcher = Resolve-ClaudeLauncher
+  if ($launcher.ToLower().EndsWith(".exe")) {
+    $file = $launcher
+    $args = @('-p', $prompt, '--dangerously-skip-permissions')
+  } else {
+    # .cmd / extensionless shim: must go through cmd.exe. Quote for cmd parsing.
+    $file = "$env:ComSpec"
+    $escapedPrompt = $prompt -replace '"', '\"'
+    $args = @('/d', '/c', "`"$launcher`" -p `"$escapedPrompt`" --dangerously-skip-permissions")
+  }
+  $proc = Start-Process -FilePath $file `
+    -ArgumentList $args `
     -WorkingDirectory $workDir `
     -RedirectStandardOutput $stdout `
     -RedirectStandardError $stderr `

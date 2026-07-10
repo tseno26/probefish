@@ -1,0 +1,13 @@
+{
+  "name": "probefish-eval-oracle",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Hidden oracle for the probefish A/B eval harness. Imports the fixture from FIXTURE_PATH (an env var, never a hardcoded path) and checks that every planted trap survived.",
+  "scripts": {
+    "test": "vitest run --reporter=verbose"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
+  }
+}

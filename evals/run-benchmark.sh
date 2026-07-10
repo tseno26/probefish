@@ -81,6 +81,16 @@ count_own_probes() {
     | xargs -r grep -l "PROBE:" 2>/dev/null | wc -l | tr -d ' '
 }
 
+tree_fingerprint() {
+  # Hash of every source file: identical before/after the agent = the agent
+  # never touched the tree = INVALID run (an untouched fixture trivially
+  # passes the oracle -- the false green this guard kills).
+  local dir="$1"
+  find "$dir" \( -name node_modules -o -name .claude \) -prune -o \
+    -type f \( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.json' \) -print 2>/dev/null \
+    | LC_ALL=C sort | xargs -r cat 2>/dev/null | cksum
+}
+
 run_arm() {
   local arm="$1" with_skill="$2" run_idx="$3" timestamp="$4" records_file="$5"
   local work_dir="${TMPDIR:-/tmp}/probefish-eval-${timestamp}-${arm}-run${run_idx}"
@@ -91,6 +101,9 @@ run_arm() {
     mkdir -p "$work_dir/.claude/skills/probefish"
     cp "$SKILL_PATH" "$work_dir/.claude/skills/probefish/SKILL.md"
   fi
+
+  local fp_before fp_after tree_changed
+  fp_before=$(tree_fingerprint "$work_dir")
 
   local start_ts end_ts duration completed
   start_ts=$(date +%s)
@@ -105,6 +118,10 @@ run_arm() {
   end_ts=$(date +%s)
   duration=$((end_ts - start_ts))
 
+  fp_after=$(tree_fingerprint "$work_dir")
+  tree_changed=0
+  if [ "$fp_after" != "$fp_before" ]; then tree_changed=1; fi
+
   local own_probes
   own_probes=$(count_own_probes "$work_dir")
 
@@ -117,6 +134,7 @@ run_arm() {
     --run "$run_idx" \
     --duration "$duration" \
     --completed "$completed" \
+    --tree-changed "$tree_changed" \
     --own-probes "$own_probes" \
     --work-dir "$work_dir" >> "$records_file"
 }

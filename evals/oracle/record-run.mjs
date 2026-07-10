@@ -43,10 +43,17 @@ if (args['vitest-json'] && existsSync(args['vitest-json'])) {
   parseError = `no vitest report at ${args['vitest-json'] ?? '(unset)'}`;
 }
 
+const agentCompleted = args.completed === '1';
+const treeChanged = args['tree-changed'] === '1';
+
 const record = {
   arm: args.arm ?? null,
   run: args.run ? Number(args.run) : null,
-  agentCompleted: args.completed === '1',
+  agentCompleted,
+  treeChanged,
+  // A run only counts if the agent exited cleanly AND actually modified the
+  // fixture: an untouched tree trivially passes the oracle (false green).
+  valid: agentCompleted && treeChanged,
   durationSec: args.duration ? Number(args.duration) : null,
   trapsPassed,
   trapsFailed,

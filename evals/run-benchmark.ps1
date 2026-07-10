@@ -79,38 +79,52 @@ function Copy-FixtureTo($destDir) {
   }
 }
 
-function Resolve-ClaudeLauncher() {
-  # npm installs `claude` as a .cmd shim on Windows; Start-Process can only
-  # exec real Win32 binaries, so route shims through cmd.exe.
-  $cmd = Get-Command "claude.cmd" -ErrorAction SilentlyContinue
-  if (-not $cmd) { $cmd = Get-Command "claude.exe" -ErrorAction SilentlyContinue }
-  if (-not $cmd) { $cmd = Get-Command "claude" -ErrorAction SilentlyContinue }
-  if (-not $cmd) {
+function Resolve-ClaudeInvocation() {
+  # npm installs `claude` as a .cmd shim; Start-Process can't exec .cmd, and
+  # cmd.exe /c quoting is a minefield (a quoted path + a quoted prompt gets
+  # re-parsed into a single bogus command name). Bypass both problems: run
+  # node.exe directly on the CLI's entry js, and feed the prompt via STDIN
+  # so no prompt text ever appears on a command line.
+  $shim = Get-Command "claude.cmd" -ErrorAction SilentlyContinue
+  if (-not $shim) { $shim = Get-Command "claude" -ErrorAction SilentlyContinue }
+  if (-not $shim) {
     Write-Host "ERROR: 'claude' CLI not found in PATH." -ForegroundColor Red
     exit 1
   }
-  return $cmd.Source
+  if ($shim.Source.ToLower().EndsWith(".exe")) {
+    return @{ File = $shim.Source; PrefixArgs = @() }
+  }
+  $npmDir = Split-Path -Parent $shim.Source
+  # Claude Code >= 2.x ships a native binary behind the npm shim.
+  $nativeExe = Join-Path $npmDir "node_modules\@anthropic-ai\claude-code\bin\claude.exe"
+  if (Test-Path $nativeExe) {
+    return @{ File = $nativeExe; PrefixArgs = @() }
+  }
+  # Older installs: a cli.js entrypoint run through node.
+  $cliJs = Join-Path $npmDir "node_modules\@anthropic-ai\claude-code\cli.js"
+  $node = Get-Command "node.exe" -ErrorAction SilentlyContinue
+  if ((Test-Path $cliJs) -and $node) {
+    return @{ File = $node.Source; PrefixArgs = @($cliJs) }
+  }
+  Write-Host "ERROR: cannot resolve a directly-executable claude entrypoint (looked for $nativeExe and $cliJs)." -ForegroundColor Red
+  exit 1
 }
 
-function Invoke-ClaudeAgent($workDir, $prompt, $timeout) {
+function Invoke-ClaudeAgent($workDir, $promptFile, $timeout) {
   $stdout = Join-Path $workDir "agent-stdout.log"
   $stderr = Join-Path $workDir "agent-stderr.log"
-  $launcher = Resolve-ClaudeLauncher
-  if ($launcher.ToLower().EndsWith(".exe")) {
-    $file = $launcher
-    $args = @('-p', $prompt, '--dangerously-skip-permissions')
-  } else {
-    # .cmd / extensionless shim: must go through cmd.exe. Quote for cmd parsing.
-    $file = "$env:ComSpec"
-    $escapedPrompt = $prompt -replace '"', '\"'
-    $args = @('/d', '/c', "`"$launcher`" -p `"$escapedPrompt`" --dangerously-skip-permissions")
-  }
-  $proc = Start-Process -FilePath $file `
-    -ArgumentList $args `
+  $inv = Resolve-ClaudeInvocation
+  $procArgs = @($inv.PrefixArgs) + @('-p', '--dangerously-skip-permissions')
+  $proc = Start-Process -FilePath $inv.File `
+    -ArgumentList $procArgs `
     -WorkingDirectory $workDir `
+    -RedirectStandardInput $promptFile `
     -RedirectStandardOutput $stdout `
     -RedirectStandardError $stderr `
     -NoNewWindow -PassThru
+
+  # PS 5.1 gotcha: ExitCode is $null unless the handle is touched before exit.
+  $null = $proc.Handle
 
   $finished = $proc.WaitForExit($timeout * 1000)
   if (-not $finished) {
@@ -118,7 +132,22 @@ function Invoke-ClaudeAgent($workDir, $prompt, $timeout) {
     try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
     return $false
   }
-  return $true
+  # "the process exited" is NOT "the agent worked": check the exit code.
+  return ($proc.ExitCode -eq 0)
+}
+
+function Get-TreeFingerprint($dir) {
+  # Hash of every source file: if this is identical before/after the agent,
+  # the agent never touched the tree and the run is INVALID (an untouched
+  # fixture trivially passes the oracle -- the false green this guard kills).
+  $files = Get-ChildItem -Path $dir -Recurse -File -Include *.ts, *.tsx, *.js, *.json -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\|\\\.claude\\' } | Sort-Object FullName
+  $sb = New-Object System.Text.StringBuilder
+  foreach ($f in $files) {
+    $h = (Get-FileHash -Path $f.FullName -Algorithm MD5).Hash
+    [void]$sb.Append($f.FullName.Substring($dir.Length)).Append('=').Append($h).Append(';')
+  }
+  return $sb.ToString()
 }
 
 function Count-OwnProbes($workDir) {
@@ -143,10 +172,16 @@ function Run-Arm($armName, [bool]$withSkill, $runIndex, $timestamp, $recordsFile
     Copy-Item -Path $skillPath -Destination (Join-Path $skillDest "SKILL.md") -Force
   }
 
+  $fpBefore = Get-TreeFingerprint $workDir
+
   $start = Get-Date
-  $completed = Invoke-ClaudeAgent $workDir $taskPrompt $timeoutSec
+  $completed = Invoke-ClaudeAgent $workDir $taskFile $timeoutSec
   $end = Get-Date
   $durationSec = [math]::Round(($end - $start).TotalSeconds, 1)
+
+  $fpAfter = Get-TreeFingerprint $workDir
+  $treeChanged = "0"
+  if ($fpAfter -ne $fpBefore) { $treeChanged = "1" }
 
   $ownProbes = Count-OwnProbes $workDir
 
@@ -169,6 +204,7 @@ function Run-Arm($armName, [bool]$withSkill, $runIndex, $timestamp, $recordsFile
     --run $runIndex `
     --duration $durationSec `
     --completed $completedFlag `
+    --tree-changed $treeChanged `
     --own-probes $ownProbes `
     --work-dir $workDir
 

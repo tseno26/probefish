@@ -61,7 +61,7 @@ If the registry were derived from the markers (`grep` every `PROBE:` comment and
 <summary><strong>Why "FISH"? — the origin story</strong></summary>
 <br>
 
-The author isn't a developer — biotech background, first real app built with AI assistance. The recurring burn: the agent writes slightly different versions of the same function over a project's life, eventually consolidates them, and the consolidation quietly drops variables that mattered, with no way to know until something breaks downstream.
+The author isn't a developer — biotech background, first real app built with AI assistance, leaning on skills like [ponytail](https://github.com/DietrichGebert/ponytail) (anti-over-engineering) and graphify (codebase → knowledge graph) along the way. The recurring burn neither of those caught: the agent writes slightly different versions of the same function over a project's life, eventually consolidates them, and the consolidation quietly drops variables that mattered, with no way to know until something breaks downstream.
 
 In the lab, **FISH** (Fluorescence In Situ Hybridization) finds genome damage that's invisible to the eye: a fluorescent DNA probe binds to one specific region; under the microscope a healthy region lights up, and a deletion shows up as a signal that simply isn't there. You don't stare at the whole genome hoping to spot damage — you watch one tagged spot for one specific change.
 
@@ -84,7 +84,7 @@ Different questions, meant to compose.
 | Core question | "Do we need this file/abstraction/dependency at all?" | "Did this change drop something between forms?" |
 | Prevents | Bloat, speculative abstractions | Silent data loss at representation boundaries |
 
-ponytail keeps near-duplicates from piling up in the first place; probefish protects the moment data moves — including the (correct) decision to collapse the duplicates that did accumulate.
+[ponytail](https://github.com/DietrichGebert/ponytail) keeps near-duplicates from piling up in the first place; probefish protects the moment data moves — including the (correct) decision to collapse the duplicates that did accumulate.
 
 ---
 

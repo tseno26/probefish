@@ -1,0 +1,34 @@
+{
+  "_doc": "This is the census: a hand-written map of regression probes, written BEFORE reading the code and kept INDEPENDENT of the markers it describes. That independence is what makes it useful — deleting a probe's marker leaves the census pointing at something that no longer exists, and the mismatch is what goes red. Do not generate this file from the markers themselves; a derived list can never notice a loss. Schema: each planted entry is id + test (path to the file expected to carry the marker) + bug (why this probe exists, one line) + invariant (the one-sentence guarantee it checks) + ref (optional pointer to further write-up). Entries in `pending` are known gaps: invariants identified but not yet wired to a marker/test. They are not reconciled, just tracked so they don't get forgotten. Your own repo's census lives at `probes.census.json` at the root — this file is a filled-in EXAMPLE the tests in this folder run against, not the file your reconciler reads in production.",
+  "planted": [
+    {
+      "id": "cart-total-roundtrip",
+      "test": "src/checkout/cart-total.probe.test.ts",
+      "bug": "Editing an item's quantity in the cart and reopening the summary silently dropped previously applied discounts (issue #482).",
+      "invariant": "applyDiscounts(cart) -> serialize -> parse returns a cart with the same total and the same set of applied discounts as the input.",
+      "ref": "docs/probes/cart-total-roundtrip.md"
+    },
+    {
+      "id": "address-validation-parity",
+      "test": "src/checkout/address-validation.probe.test.ts",
+      "bug": "The client-side and server-side address validators accepted different sets of PO box formats, so some orders passed the form but were rejected at the payment step.",
+      "invariant": "validateAddress() run on the client and validateAddress() run on the server agree on every case in the shared fixture corpus.",
+      "ref": "docs/probes/address-validation-parity.md"
+    },
+    {
+      "id": "session-cart-merge",
+      "test": "src/checkout/session-merge.probe.test.ts",
+      "bug": "Signing in mid-checkout replaced the guest cart instead of merging it, dropping items the user had added before authenticating (issue #511).",
+      "invariant": "mergeCarts(guestCart, accountCart) contains every line item from both inputs, with quantities summed for matching SKUs, and neither input is mutated.",
+      "ref": "docs/probes/session-cart-merge.md"
+    }
+  ],
+  "pending": [
+    {
+      "id": "tax-rounding-drift",
+      "bug": "Tax computed per line item can differ from tax computed on the order total by a cent on multi-item orders; not yet isolated into a regression probe.",
+      "invariant": "sum(perLineTax) equals totalTax(order) for every order in the fixture corpus.",
+      "ref": "docs/bug-patterns/tax-rounding-drift.md"
+    }
+  ]
+}

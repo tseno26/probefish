@@ -1,4 +1,12 @@
-# probefish 🐟
+<p align="center">
+  <img src="assets/probefish.png" width="440" alt="probefish — a deadpan fish with five probe wells on its flank; four glow fluorescent green, the fourth has gone dark, and the fish is looking right at it" />
+</p>
+
+<h1 align="center">probefish</h1>
+
+<p align="center"><em>It binds to your data. It glows while it survives. It goes dark the moment you lose it.</em></p>
+
+---
 
 **probefish stops an AI coding agent from silently dropping your data any time it moves between representations — form to state to API to DB, editor to rows to snapshot, and yes, collapsing duplicate functions too.**
 

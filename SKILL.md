@@ -279,6 +279,39 @@ pattern reappears outside an explicit whitelist (the owner modules).
   convention not yet decided (the probe would crystallize a doubt — don't
   crystallize a doubt).
 
+### Adopting on a brownfield codebase — the baseline ratchet
+
+A convention probe scans for a pattern, not an instance — on a codebase with
+real history, that pattern already has N pre-existing violations. Plant it
+as-is and it's red from the first commit, for debt nobody touched today.
+That red gets "solved" one of two ways: someone disables the probe ("too
+noisy"), or it stays red forever and everyone learns to ignore red. Either
+way the guard is dead before it caught anything new.
+
+The fix is a **baseline**: a committed whitelist of the matches already
+censused (convention-id → file, one entry per known violation), read
+independently of the probe's live scan — same census discipline as
+everywhere else in this method. The probe now fails ONLY on:
+1. a match **outside** the baseline — a genuinely new instance of the
+   pattern, the guard doing its actual job;
+2. a baseline entry that **no longer matches** — the debt got fixed but the
+   baseline wasn't shrunk, so it's lying about the codebase's real state
+   ("stale").
+
+The baseline can only shrink. Compare **per key** (per convention-id × file,
+not just the aggregate count) — an aggregate total lets debt paid off in one
+file and added in another net to zero and pass unnoticed. The
+`--update-baseline` rewrite is a manual, single-purpose command, run only
+after you've looked at *why* the number moved — never to silence a red you
+don't understand.
+
+Mutation-verify (three, not one): plant a fake new match outside the
+baseline → red. Remove one real entry from the baseline while its match
+still exists in the code → red (reads as new). Make a baselined match stop
+existing (fix the code, or rename the file) without touching the baseline →
+red too, but as "stale," not "new" — the probe has to name which failure
+mode it is, not just say "mismatch."
+
 ### Impure rings (DB / network / triggers)
 
 An in-memory round-trip does NOT cover real writes (RPCs, triggers, APIs,

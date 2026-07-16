@@ -146,8 +146,8 @@ itself. Of the 79 confirmed:
   its original enforced — the copy silently re-enabled a state the source
   was written to block. And a classification helper diverged on a single
   case-sensitivity call: one copy normalized case before comparing, the
-  copy didn't, and the two silently disagreed on inputs neither author had
-  tested.
+  other copy didn't, and the two silently disagreed on inputs neither
+  author had tested.
 
 Neither cause is fixed by telling people to be more careful. Missing-home
 needs a *findable* home — a canonical-helper registry indexed by problem,

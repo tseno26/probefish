@@ -116,6 +116,57 @@ Invoke with `/probefish`, or let it trigger on its own — it's written to kick 
 
 ---
 
+## Field report — brownfield duplication census (July 2026)
+
+A live production codebase (a coaching app, React Native + Supabase) had
+accumulated real duplication over months of ordinary feature work — not a
+toy example. After 691 files changed in about five weeks, a census workflow
+ran over that delta: 292 agents total (1 canon-registry agent building the
+canonical-helper index, 35 "find" agents working one code area each, 256
+verification agents), which nets out to **two independent adversarial
+lenses per finding** — a candidate only counts as confirmed duplication
+when both lenses agree it's real, not merely similar-looking.
+
+The funnel: **173 raw findings → 128 deduplicated groups → 79 confirmed /
+49 killed by the two lenses** (0 left uncertain). "Killed" wasn't a rubber
+stamp — code that looked identical but turned out to be a deliberate fork,
+or two call sites landing on the same value by coincidence rather than a
+shared rule, both got thrown out rather than force-merged.
+
+Reading the *cause*, not just the count, mattered more than the number
+itself. Of the 79 confirmed:
+
+- **49 were missing-home**: the rule existed nowhere importable when the
+  copy was written — no canonical helper yet, or one that existed but was
+  private/unexported. Nobody "failed to grep"; there was nothing to find.
+- **8 were diverging twins**: copied with a comment declaring the intent
+  ("replicated 1:1", "parity with X") and then left to drift silently. Two
+  of these were real near-bugs, not cosmetic: a confirm-gate for a UI
+  action, copied with a "1:1" comment, had already lost one of the checks
+  its original enforced — the copy silently re-enabled a state the source
+  was written to block. And a classification helper diverged on a single
+  case-sensitivity call: one copy normalized case before comparing, the
+  copy didn't, and the two silently disagreed on inputs neither author had
+  tested.
+
+Neither cause is fixed by telling people to be more careful. Missing-home
+needs a *findable* home — a canonical-helper registry indexed by problem,
+not just by name, so the next lookup actually resolves before a copy gets
+written. Diverging twins need a mechanical guard, because a twin-comment is
+a promise and a promise doesn't compile: that's the convention probe + the
+baseline ratchet described above — every helper the census confirmed as
+canonical gets a grep-signal watch across the whole codebase, gated so
+day-one debt doesn't drown the signal, tightening as real fixes land.
+
+The census doesn't end at one run either: it re-runs monthly on the delta
+since the last pass, so newly-introduced duplication becomes a new probe
+instead of sliding back into the same 79 unaddressed.
+
+The moral this method keeps coming back to: awareness doesn't protect —
+only reuse does. A twin-comment doesn't compile.
+
+---
+
 ## Scope
 
 Built for AI-assisted development where the diff volume outpaces line-by-line review — that includes non-developers shipping real projects with an agent, and developers running large mechanical refactors. If you already read every refactor line-by-line, you need this less; the census pattern (an independent, hand-written registry that catches things quietly disappearing) may still be worth stealing.
